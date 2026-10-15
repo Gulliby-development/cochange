@@ -3,9 +3,9 @@
 import re
 from pathlib import Path
 
-_USAGE = """usage: cochange hot [--top N] [--since DATE] [--until DATE] LOG
-       cochange pairs [--top N] [--since DATE] [--until DATE] [--min-commits N] [--max-files N] LOG
-       cochange owners [--top N] [--since DATE] [--until DATE] [--min-commits N] LOG"""
+_USAGE = """usage: cochange hot [--top N] [--since DATE] [--until DATE] [--path DIR]... LOG
+       cochange pairs [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] [--max-files N] LOG
+       cochange owners [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] LOG"""
 
 _HISTORY_INTRO = (
     "The file `history.log` (`<TAB>` stands for one tab character; "

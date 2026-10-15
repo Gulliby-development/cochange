@@ -87,7 +87,19 @@ def main(
         return 1
 
     analysis_commits = [
-        {"author": commit.author, "date": commit.date, "files": commit.files}
+        {
+            "author": commit.author,
+            "date": commit.date,
+            "files": {
+                path: changes
+                for path, changes in commit.files.items()
+                if not arguments.paths
+                or any(
+                    path == directory or path.startswith(directory + "/")
+                    for directory in arguments.paths
+                )
+            },
+        }
         for commit in selected
     ]
     if arguments.command == "hot":

@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from .dates import valid_date
 from .text import quote
 
-USAGE = """usage: cochange hot [--top N] [--since DATE] [--until DATE] LOG
-       cochange pairs [--top N] [--since DATE] [--until DATE] [--min-commits N] [--max-files N] LOG
-       cochange owners [--top N] [--since DATE] [--until DATE] [--min-commits N] LOG"""
+USAGE = """usage: cochange hot [--top N] [--since DATE] [--until DATE] [--path DIR]... LOG
+       cochange pairs [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] [--max-files N] LOG
+       cochange owners [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] LOG"""
 
 
 class ArgumentError(Exception):
@@ -25,6 +25,7 @@ class Arguments:
     min_commits: int
     max_files: int
     log: str
+    paths: tuple[str, ...] = ()
 
 
 def _number(value: str, option: str, minimum: int, maximum: int) -> int:
@@ -68,10 +69,12 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> Arguments:
         "--top": (1, 1000),
         "--since": None,
         "--until": None,
+        "--path": None,
         "--min-commits": (1, 100000),
         "--max-files": (2, 1000),
     }
     values: dict[str, str] = {}
+    path_values: list[str] = []
     seen: set[str] = set()
     positional: list[str] = []
     index = 1
@@ -87,7 +90,6 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> Arguments:
             None,
         )
         if option is not None:
-            seen.add(option)
             if argument == option:
                 if index + 1 >= len(argv):
                     raise ArgumentError(f"{option} needs a value")
@@ -95,7 +97,11 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> Arguments:
                 value = argv[index]
             else:
                 value = argument[len(option) + 1 :]
-            values[option] = value
+            if option == "--path":
+                path_values.append(value)
+            else:
+                seen.add(option)
+                values[option] = value
         elif argument.startswith("-") and argument != "-":
             raise ArgumentError(f"unknown option {quote(argument)}")
         else:
@@ -116,6 +122,15 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> Arguments:
         raise ArgumentError(
             f'invalid --until {quote(until)} (expected a date as YYYY-MM-DD)'
         )
+
+    paths = []
+    for value in path_values:
+        path = value.rstrip("/")
+        if not path:
+            raise ArgumentError(
+                f"invalid --path {quote(value)} (expected a directory or file path)"
+            )
+        paths.append(path)
 
     default_minimum = 3 if command == "owners" else 2
     min_text = values.get("--min-commits", str(default_minimum))
@@ -143,4 +158,5 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> Arguments:
         min_commits=min_commits,
         max_files=max_files,
         log=positional[0],
+        paths=tuple(paths),
     )
