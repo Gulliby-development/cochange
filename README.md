@@ -25,17 +25,17 @@ Activate that environment using the command for your shell. cochange uses only t
 Create a history log as described in [Log format](#log-format), then choose one of the three commands:
 
 ```text
-python -m cochange hot [--top N] [--since DATE] [--until DATE] LOG
-python -m cochange pairs [--top N] [--since DATE] [--until DATE] [--min-commits N] [--max-files N] LOG
-python -m cochange owners [--top N] [--since DATE] [--until DATE] [--min-commits N] LOG
+python -m cochange hot [--top N] [--since DATE] [--until DATE] [--path DIR]... LOG
+python -m cochange pairs [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] [--max-files N] LOG
+python -m cochange owners [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] LOG
 ```
 
 Use `-` as LOG to read the log from standard input. The synopsis is also available with `python -m cochange --help`:
 
 ```text
-usage: cochange hot [--top N] [--since DATE] [--until DATE] LOG
-       cochange pairs [--top N] [--since DATE] [--until DATE] [--min-commits N] [--max-files N] LOG
-       cochange owners [--top N] [--since DATE] [--until DATE] [--min-commits N] LOG
+usage: cochange hot [--top N] [--since DATE] [--until DATE] [--path DIR]... LOG
+       cochange pairs [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] [--max-files N] LOG
+       cochange owners [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] LOG
 ```
 
 The following worked example uses `history.log`. Its contents and the report blocks are reproduced as supplied:
@@ -115,6 +115,8 @@ The file is UTF-8 text. A commit line contains its hash, author, date, and subje
 - **owners** lists paths touched by at least `--min-commits` selected commits, their distinct author count, and the most frequent author. Ties for owner go to the name that sorts first.
 
 All commands accept inclusive `--since` and `--until` dates and `--top` to limit displayed rows. They print tables with deterministic ordering and percentages rounded to one decimal place.
+
+`--path DIR` (repeatable) keeps only the files at or under DIR: a path is kept when it equals DIR or starts with DIR and `/`, so `--path src` keeps `src/client.py` and not `src2/a.py`; a trailing `/` on DIR is ignored. For example, `python -m cochange hot --path src --path docs history.log` ranks only the files under `src` and `docs`. The files are filtered before anything is counted, so every number, the `--max-files` limit of `pairs` and the summary line of `owners` describe the kept files only; a commit left without files still counts as selected.
 
 ## Exit codes
 

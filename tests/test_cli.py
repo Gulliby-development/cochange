@@ -8,10 +8,10 @@ from cochange.args import parse_args
 from cochange.cli import main
 
 USAGE = (
-    "usage: cochange hot [--top N] [--since DATE] [--until DATE] LOG\n"
-    "       cochange pairs [--top N] [--since DATE] [--until DATE] "
+    "usage: cochange hot [--top N] [--since DATE] [--until DATE] [--path DIR]... LOG\n"
+    "       cochange pairs [--top N] [--since DATE] [--until DATE] [--path DIR]... "
     "[--min-commits N] [--max-files N] LOG\n"
-    "       cochange owners [--top N] [--since DATE] [--until DATE] "
+    "       cochange owners [--top N] [--since DATE] [--until DATE] [--path DIR]... "
     "[--min-commits N] LOG\n"
 )
 HISTORY = b">abc1234\tAda\t2026-03-01\tfirst\n1\t0\tfile.py\n"
@@ -441,4 +441,402 @@ def test_merge_only_log_succeeds_with_header_only_output(command: str, expected:
 
     assert status == 0
     assert stdout == expected
+    assert stderr == ""
+
+
+PATH_HISTORY = (
+    b">9a8b7c6\tDana\t2026-03-09\tRetry failed requests\n"
+    b"2\t1\tsrc/client.py\n6\t0\ttests/test_client.py\n"
+    b">8f7e6d5\tEli\t2026-03-05\tMerge branch 'config'\n"
+    b">7e6d5c4\tEli\t2026-03-04\tLoad settings from TOML\n"
+    b"10\t4\tsrc/config.py\n3\t3\tsrc/client.py\n1\t1\ttests/test_config.py\n"
+    b">6d5c4b3\tDana\t2026-03-02\tMove helpers and add a logo\n"
+    b"0\t0\tsrc/{util => helpers}/text.py\n-\t-\tdocs/logo.png\n"
+    b"4\t2\tsrc/client.py\n"
+    b">5c4b3a2\tSam\t2026-02-27\tReformat everything\n"
+    b"8\t8\tsrc/client.py\n5\t5\tsrc/config.py\n"
+    b"3\t3\ttests/test_client.py\n2\t2\ttests/test_config.py\n"
+    b">4b3a291\tSam\t2026-02-20\tAdd the client\n"
+    b"40\t0\tsrc/client.py\n15\t0\ttests/test_client.py\n"
+)
+
+
+def test_parse_args_collects_normalized_repeated_paths_and_keeps_scalar_options() -> None:
+    parsed = parse_args(
+      [
+          "pairs",
+          "--path",
+          "src/",
+          "--top",
+          "3",
+          "history.log",
+          "--path=docs//",
+          "--path",
+          "-named",
+      ]
+    )
+
+    assert parsed.paths == ("src", "docs", "-named")
+    assert parsed.command == "pairs"
+    assert parsed.top == 3
+    assert parsed.log == "history.log"
+
+
+def test_parse_args_defaults_to_no_paths_and_preserves_other_path_characters() -> None:
+    assert parse_args(["hot", "-"]).paths == ()
+
+    parsed = parse_args(
+      ["hot", "--path=./src", "--path", "../src", "--path=src\\child", "-"]
+    )
+
+    assert parsed.paths == ("./src", "../src", "src\\child")
+
+
+def test_parse_args_preserves_duplicate_and_overlapping_paths_in_order() -> None:
+    parsed = parse_args(
+      ["owners", "--path=src", "--path", "src", "--path=src/helpers", "-"]
+    )
+
+    assert parsed.paths == ("src", "src", "src/helpers")
+
+
+def test_hot_path_filter_matches_the_supplied_exact_example() -> None:
+    status, stdout, stderr = _run(
+      ["hot", "--top", "3", "--path", "src", "-"], PATH_HISTORY
+    )
+
+    assert status == 0
+    assert stdout == (
+      "COMMITS  ADDED  DELETED  AUTHORS  LAST        PATH\n"
+      "      5     57       14        3  2026-03-09  src/client.py\n"
+      "      2     15        9        2  2026-03-04  src/config.py\n"
+      "      1      0        0        1  2026-03-02  src/helpers/text.py\n"
+    )
+    assert stderr == ""
+    assert "\r" not in stdout
+
+
+def test_hot_path_union_includes_docs_in_the_specified_order() -> None:
+    status, stdout, stderr = _run(
+      ["hot", "--path", "src", "--path", "docs", "-"], PATH_HISTORY
+    )
+
+    assert status == 0
+    assert stdout == (
+      "COMMITS  ADDED  DELETED  AUTHORS  LAST        PATH\n"
+      "      5     57       14        3  2026-03-09  src/client.py\n"
+      "      2     15        9        2  2026-03-04  src/config.py\n"
+      "      1      0        0        1  2026-03-02  docs/logo.png\n"
+      "      1      0        0        1  2026-03-02  src/helpers/text.py\n"
+    )
+    assert stderr == ""
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected_paths"),
+    [
+      (
+            ["hot", "--path", "src/", "-"],
+            ["src/client.py", "src/config.py", "src/helpers/text.py"],
+        ),
+        (
+            ["hot", "--path=src//", "-"],
+            ["src/client.py", "src/config.py", "src/helpers/text.py"],
+        ),
+        (["hot", "--path", "src/client.py", "-"], ["src/client.py"]),
+    ],
+)
+def test_hot_path_spellings_trailing_slashes_and_exact_file(
+    argv: list[str], expected_paths: list[str]
+) -> None:
+    status, stdout, stderr = _run(argv, PATH_HISTORY)
+
+    assert status == 0
+    rows = stdout.splitlines()[1:]
+    assert [row.split()[-1] for row in rows] == expected_paths
+    assert stderr == ""
+
+
+def test_hot_top_is_applied_to_the_filtered_rows() -> None:
+    status, stdout, stderr = _run(
+      ["hot", "--path", "src", "--top", "1", "-"], PATH_HISTORY
+    )
+
+    assert status == 0
+    assert stdout == (
+      "COMMITS  ADDED  DELETED  AUTHORS  LAST        PATH\n"
+      "      5     57       14        3  2026-03-09  src/client.py\n"
+      "... 2 more files\n"
+    )
+    assert stderr == ""
+
+
+def test_pairs_path_filter_matches_the_supplied_exact_example() -> None:
+    status, stdout, stderr = _run(["pairs", "--path", "src", "-"], PATH_HISTORY)
+
+    assert status == 0
+    assert stdout == (
+      "TOGETHER   A->B    B->A  FILE A         FILE B\n"
+      "       2  40.0%  100.0%  src/client.py  src/config.py\n"
+    )
+    assert stderr == ""
+
+
+def test_pairs_max_files_and_skipped_count_are_applied_after_path_filtering() -> None:
+    status, stdout, stderr = _run(
+      ["pairs", "--max-files", "2", "-"], PATH_HISTORY
+    )
+
+    assert status == 0
+    assert stdout == (
+      "TOGETHER    A->B    B->A  FILE A         FILE B\n"
+      "       2  100.0%  100.0%  src/client.py  tests/test_client.py\n"
+    )
+    assert stderr == "cochange: skipped 3 commits with more than 2 files\n"
+
+    filtered_status, filtered_stdout, filtered_stderr = _run(
+      ["pairs", "--max-files", "2", "--path", "src", "-"], PATH_HISTORY
+    )
+
+    assert filtered_status == 0
+    assert filtered_stdout == (
+      "TOGETHER   A->B    B->A  FILE A         FILE B\n"
+      "       2  40.0%  100.0%  src/client.py  src/config.py\n"
+    )
+    assert filtered_stderr == ""
+
+
+def test_owners_path_filter_matches_the_supplied_exact_example() -> None:
+    status, stdout, stderr = _run(
+      ["owners", "--path", "tests", "--min-commits", "2", "-"], PATH_HISTORY
+    )
+
+    assert status == 0
+    assert stdout == (
+      "COMMITS  AUTHORS  SHARE  OWNER  PATH\n"
+      "      3        2  66.7%  Sam    tests/test_client.py\n"
+      "      2        2  50.0%  Eli    tests/test_config.py\n"
+      "2 files, 0 with a single author (0.0%)\n"
+    )
+    assert stderr == ""
+
+
+@pytest.mark.parametrize(
+    ("command", "header"),
+    [
+      ("hot", "COMMITS  ADDED  DELETED  AUTHORS  LAST  PATH\n"),
+      ("pairs", "TOGETHER  A->B  B->A  FILE A  FILE B\n"),
+      ("owners", "COMMITS  AUTHORS  SHARE  OWNER  PATH\n"),
+    ],
+)
+def test_filter_with_no_matching_files_keeps_selected_commits_and_prints_header(
+    command: str, header: str
+) -> None:
+    status, stdout, stderr = _run([command, "--path", "nothing", "-"], PATH_HISTORY)
+
+    assert status == 0
+    assert stdout == header
+    assert stderr == ""
+
+
+@pytest.mark.parametrize(
+    ("option", "value"),
+    [
+      ("--path", ""),
+      ("--path", "/"),
+      ("--path", "//"),
+      ("--path=", ""),
+      ("--path=", "/"),
+      ("--path=", "//"),
+    ],
+)
+def test_path_rejects_values_empty_after_trailing_slash_removal(
+    option: str, value: str
+) -> None:
+    argv = ["hot", option, value, "-"] if option == "--path" else ["hot", f"{option}{value}", "-"]
+    shown_value = value
+
+    status, stdout, stderr = _run(argv, PATH_HISTORY)
+
+    assert status == 2
+    assert stdout == ""
+    assert stderr == (
+      f'cochange: invalid --path "{shown_value}" '
+      "(expected a directory or file path)\n"
+    )
+
+
+def test_path_missing_value_and_invalid_repeated_value_have_exact_errors() -> None:
+    missing_status, missing_stdout, missing_stderr = _run(["hot", "--path"], PATH_HISTORY)
+    invalid_status, invalid_stdout, invalid_stderr = _run(
+      ["hot", "--path=src", "--path", "/", "-"], PATH_HISTORY
+    )
+
+    assert missing_status == 2
+    assert missing_stdout == ""
+    assert missing_stderr == "cochange: --path needs a value\n"
+    assert invalid_status == 2
+    assert invalid_stdout == ""
+    assert invalid_stderr == (
+      'cochange: invalid --path "/" (expected a directory or file path)\n'
+    )
+
+
+@pytest.mark.parametrize(
+    ("argv", "diagnostic"),
+    [
+      (
+          ["hot", "--top=0", "--path=", "-"],
+          'invalid --top "0" (expected a whole number from 1 to 1000)',
+      ),
+      (
+          ["hot", "--path=", "--since=x", "-"],
+          'invalid --since "x" (expected a date as YYYY-MM-DD)',
+      ),
+      (
+          ["hot", "--until=x", "--path=", "-"],
+          'invalid --until "x" (expected a date as YYYY-MM-DD)',
+      ),
+      (
+          ["hot", "--path=", "--min-commits=0", "-"],
+          'invalid --path "" (expected a directory or file path)',
+      ),
+      (
+          ["pairs", "--min-commits=0", "--max-files=1", "--path=src", "-"],
+          'invalid --min-commits "0" (expected a whole number from 1 to 100000)',
+      ),
+      (
+          ["pairs", "--max-files=1", "--path=src", "-"],
+          'invalid --max-files "1" (expected a whole number from 2 to 1000)',
+      ),
+    ],
+)
+def test_path_validation_preserves_the_required_error_precedence(
+    argv: list[str], diagnostic: str
+) -> None:
+    status, stdout, stderr = _run(argv, PATH_HISTORY)
+
+    assert status == 2
+    assert stdout == ""
+    assert stderr == f"cochange: {diagnostic}\n"
+
+
+PATH_MATCH_HISTORY = (
+    b">abc1234\tAda\t2026-03-01\tpaths\n"
+    b"1\t0\tsrc\n"
+    b"1\t0\tsrc/client.py\n"
+    b"1\t0\tsrc2/a.py\n"
+    b"1\t0\tSRC/a.py\n"
+    b"1\t0\t./src/a.py\n"
+    b"1\t0\t../src/a.py\n"
+    b"1\t0\tsrc\\child.py\n"
+    b"1\t0\tsrc/{util => helpers}/text.py\n"
+)
+
+
+def test_path_matching_uses_exact_equality_slash_boundaries_and_case() -> None:
+    status, stdout, stderr = _run(["hot", "--path", "src", "-"], PATH_MATCH_HISTORY)
+
+    assert status == 0
+    assert {row.split()[-1] for row in stdout.splitlines()[1:]} == {
+      "src",
+      "src/client.py",
+      "src/helpers/text.py",
+    }
+    assert stderr == ""
+
+
+@pytest.mark.parametrize(
+    ("directory", "matched"),
+    [
+      ("./src", "./src/a.py"),
+      ("../src", "../src/a.py"),
+      ("src\\child.py", "src\\child.py"),
+      ("src/helpers/text.py", "src/helpers/text.py"),
+    ],
+)
+def test_path_matching_preserves_literal_paths_and_matches_renames_by_destination(
+    directory: str, matched: str
+) -> None:
+    status, stdout, stderr = _run(
+      ["hot", "--path", directory, "-"], PATH_MATCH_HISTORY
+    )
+
+    assert status == 0
+    assert [row.split()[-1] for row in stdout.splitlines()[1:]] == [matched]
+    assert stderr == ""
+
+
+def test_path_matching_does_not_match_a_rename_by_its_braced_source_form() -> None:
+    status, stdout, stderr = _run(
+      ["hot", "--path", "src/{util => helpers}", "-"], PATH_MATCH_HISTORY
+    )
+
+    assert status == 0
+    assert stdout == (
+      "COMMITS  ADDED  DELETED  AUTHORS  LAST  PATH\n"
+    )
+    assert stderr == ""
+
+
+def test_duplicate_and_overlapping_filters_do_not_multiply_report_counts() -> None:
+    single_status, single_stdout, single_stderr = _run(
+      ["hot", "--path", "src", "-"], PATH_HISTORY
+    )
+    repeated_status, repeated_stdout, repeated_stderr = _run(
+      ["hot", "--path", "src", "--path=src", "--path", "src/helpers", "-"],
+      PATH_HISTORY,
+    )
+
+    assert single_status == repeated_status == 0
+    assert repeated_stdout == single_stdout
+    assert repeated_stderr == single_stderr == ""
+
+
+def test_path_date_selection_precedes_filtering_and_top() -> None:
+    status, stdout, stderr = _run(
+      [
+          "hot",
+          "--since",
+          "2026-03-09",
+          "--until=2026-03-09",
+          "--path",
+          "src",
+          "--top",
+          "1",
+          "-",
+      ],
+      PATH_HISTORY,
+    )
+
+    assert status == 0
+    assert stdout == (
+      "COMMITS  ADDED  DELETED  AUTHORS  LAST        PATH\n"
+      "      1      2        1        1  2026-03-09  src/client.py\n"
+    )
+    assert stderr == ""
+
+    empty_date_status, empty_date_stdout, empty_date_stderr = _run(
+      ["hot", "--since=2026-03-10", "--path=src", "-"], PATH_HISTORY
+    )
+
+    assert empty_date_status == 1
+    assert empty_date_stdout == ""
+    assert empty_date_stderr == "cochange: no commits in the selected range\n"
+
+    empty_files_status, empty_files_stdout, empty_files_stderr = _run(
+      ["hot", "--since=2026-03-09", "--path=nothing", "-"], PATH_HISTORY
+    )
+
+    assert empty_files_status == 0
+    assert empty_files_stdout == "COMMITS  ADDED  DELETED  AUTHORS  LAST  PATH\n"
+    assert empty_files_stderr == ""
+
+
+@pytest.mark.parametrize("directory", ["src/cli", "SRC", "src/util"])
+def test_readme_history_nonmatching_paths_print_only_the_header(directory: str) -> None:
+    status, stdout, stderr = _run(["hot", "--path", directory, "-"], PATH_HISTORY)
+
+    assert status == 0
+    assert stdout == "COMMITS  ADDED  DELETED  AUTHORS  LAST  PATH\n"
     assert stderr == ""
