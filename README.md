@@ -30,7 +30,7 @@ python -m cochange pairs [--top N] [--since DATE] [--until DATE] [--path DIR]...
 python -m cochange owners [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] LOG
 ```
 
-Use `-` as LOG to read the log from standard input. The synopsis is also available with `python -m cochange --help`:
+Use `-` as LOG to read the log from standard input. The synopsis is also available with `python -m cochange --help`, or with `--help` as the only argument after a command name (`python -m cochange hot --help`):
 
 ```text
 usage: cochange hot [--top N] [--since DATE] [--until DATE] [--path DIR]... LOG

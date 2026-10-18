@@ -65,6 +65,9 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> Arguments:
     if command not in {"hot", "pairs", "owners"}:
         raise ArgumentError(f"unknown command {quote(command)}")
 
+    if len(argv) == 2 and argv[1] == "--help":
+        raise HelpRequested
+
     option_limits = {
         "--top": (1, 1000),
         "--since": None,

@@ -58,13 +58,31 @@ def test_help_as_the_only_argument_prints_exact_usage() -> None:
     assert stderr == ""
 
 
+@pytest.mark.parametrize("command", ["hot", "pairs", "owners"])
+def test_help_after_command_prints_exact_usage(command: str) -> None:
+    status, stdout, stderr = _run([command, "--help"])
+
+    assert status == 0
+    assert stdout == USAGE
+    assert stderr == ""
+
+
+def test_help_after_unknown_command_reports_unknown_command() -> None:
+    status, stdout, stderr = _run(["frob", "--help"])
+
+    assert status == 2
+    assert stdout == ""
+    assert stderr == 'cochange: unknown command "frob"\n'
+
+
 @pytest.mark.parametrize(
     ("argv", "diagnostic"),
     [
         ([], "missing command (hot, pairs or owners)"),
         (["unknown"], 'unknown command "unknown"'),
         (["--help", "hot"], 'unknown command "--help"'),
-        (["hot", "--help"], 'unknown option "--help"'),
+        (["hot", "--help", "history.log"], 'unknown option "--help"'),
+        (["owners", "--help=1"], 'unknown option "--help=1"'),
         (["pairs", "--other"], 'unknown option "--other"'),
         (["owners", "file.log", "--unknown"], 'unknown option "--unknown"'),
     ],
