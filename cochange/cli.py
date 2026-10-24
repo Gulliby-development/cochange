@@ -11,6 +11,8 @@ from .report import hot as render_hot
 from .report import owners as render_owners
 from .report import pairs as render_pairs
 
+VERSION = "0.1.0"
+
 
 def _display_name(path: str) -> str:
     return "<stdin>" if path == "-" else path.replace("\\", "/")
@@ -49,6 +51,10 @@ def main(
         stdout = sys.stdout
     if stderr is None:
         stderr = sys.stderr
+
+    if list(argv) == ["--version"]:
+        print(f"cochange {VERSION}", file=stdout)
+        return 0
 
     try:
         arguments = parse_args(list(argv))

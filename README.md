@@ -118,6 +118,22 @@ All commands accept inclusive `--since` and `--until` dates and `--top` to limit
 
 `--path DIR` (repeatable) keeps only the files at or under DIR: a path is kept when it equals DIR or starts with DIR and `/`, so `--path src` keeps `src/client.py` and not `src2/a.py`; a trailing `/` on DIR is ignored. For example, `python -m cochange hot --path src --path docs history.log` ranks only the files under `src` and `docs`. The files are filtered before anything is counted, so every number, the `--max-files` limit of `pairs` and the summary line of `owners` describe the kept files only; a commit left without files still counts as selected.
 
+## Version
+
+Pass `--version` as the only argument to print the program name and its version on standard output and exit with 0; no log is read:
+
+```text
+python -m cochange --version
+```
+
+prints:
+
+```text
+cochange 0.1.0
+```
+
+The number is the `version` of `pyproject.toml`. `--version` together with any other argument is not recognized: `--version hot` is the unknown command `"--version"` and `hot --version LOG` the unknown option `"--version"`. The usage text printed by `--help` is unchanged.
+
 ## Exit codes
 
 - `0`: success.
