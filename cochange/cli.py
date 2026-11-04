@@ -92,6 +92,13 @@ def main(
         _write_error(stderr, "no commits in the selected range")
         return 1
 
+    if arguments.authors:
+        chosen = [commit for commit in selected if commit.author in arguments.authors]
+        if not chosen:
+            _write_error(stderr, "no commits by the selected authors")
+            return 1
+        selected = chosen
+
     analysis_commits = [
         {
             "author": commit.author,
