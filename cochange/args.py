@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from .dates import valid_date
 from .text import quote
 
-USAGE = """usage: cochange hot [--top N] [--since DATE] [--until DATE] [--path DIR]... LOG
-       cochange pairs [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] [--max-files N] LOG
-       cochange owners [--top N] [--since DATE] [--until DATE] [--path DIR]... [--min-commits N] LOG"""
+USAGE = """usage: cochange hot [--top N] [--since DATE] [--until DATE] [--path DIR]... [--author NAME]... LOG
+       cochange pairs [--top N] [--since DATE] [--until DATE] [--path DIR]... [--author NAME]... [--min-commits N] [--max-files N] LOG
+       cochange owners [--top N] [--since DATE] [--until DATE] [--path DIR]... [--author NAME]... [--min-commits N] LOG"""
 
 
 class ArgumentError(Exception):
@@ -26,6 +26,7 @@ class Arguments:
     max_files: int
     log: str
     paths: tuple[str, ...] = ()
+    authors: tuple[str, ...] = ()
 
 
 def _number(value: str, option: str, minimum: int, maximum: int) -> int:
@@ -73,11 +74,13 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> Arguments:
         "--since": None,
         "--until": None,
         "--path": None,
+        "--author": None,
         "--min-commits": (1, 100000),
         "--max-files": (2, 1000),
     }
     values: dict[str, str] = {}
     path_values: list[str] = []
+    author_values: list[str] = []
     seen: set[str] = set()
     positional: list[str] = []
     index = 1
@@ -102,6 +105,8 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> Arguments:
                 value = argument[len(option) + 1 :]
             if option == "--path":
                 path_values.append(value)
+            elif option == "--author":
+                author_values.append(value)
             else:
                 seen.add(option)
                 values[option] = value
@@ -135,6 +140,10 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> Arguments:
             )
         paths.append(path)
 
+    for value in author_values:
+        if not value:
+            raise ArgumentError(f"invalid --author {quote(value)} (expected an author name)")
+
     default_minimum = 3 if command == "owners" else 2
     min_text = values.get("--min-commits", str(default_minimum))
     min_commits = _number(min_text, "--min-commits", 1, 100000)
@@ -162,4 +171,5 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> Arguments:
         max_files=max_files,
         log=positional[0],
         paths=tuple(paths),
+        authors=tuple(author_values),
     )

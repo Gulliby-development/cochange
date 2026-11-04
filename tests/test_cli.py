@@ -8,11 +8,12 @@ from cochange.args import parse_args
 from cochange.cli import main
 
 USAGE = (
-    "usage: cochange hot [--top N] [--since DATE] [--until DATE] [--path DIR]... LOG\n"
+    "usage: cochange hot [--top N] [--since DATE] [--until DATE] [--path DIR]... "
+    "[--author NAME]... LOG\n"
     "       cochange pairs [--top N] [--since DATE] [--until DATE] [--path DIR]... "
-    "[--min-commits N] [--max-files N] LOG\n"
+    "[--author NAME]... [--min-commits N] [--max-files N] LOG\n"
     "       cochange owners [--top N] [--since DATE] [--until DATE] [--path DIR]... "
-    "[--min-commits N] LOG\n"
+    "[--author NAME]... [--min-commits N] LOG\n"
 )
 HISTORY = b">abc1234\tAda\t2026-03-01\tfirst\n1\t0\tfile.py\n"
 
